@@ -1,0 +1,41 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.3'
+    id 'io.spring.dependency-management' version '1.0.13.RELEASE'
+    id 'java'
+}
+
+group = 'study'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    /*
+
+    시큐리티 의존성 추가
+    서버 기동 시 스프링 시큐리티 초기화 작업 및 보안작업(보안, 계층 등 아무것도 없음)
+    별도 설정, 구현 없어도 기본적 웹 보안 기능이 시스템에 연동되어 작동
+    1. 모든 요청은 인증되어야 자원 접근 가능
+    2. 인증 방식은 폼 로그인, httpbasic 방식 제공
+    3. 기본 로그인 페이지가 제공됨
+    4. 기본 계정이 제공된다.
+
+    */
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    /*
+
+    -> WebSecurityConfigurerAdapter (핵심 웹 보안 기능 초기화 및 설정)
+    -> HttpSecurity (세부적인 보안 기능 설정할 수 있는 API 제공)
+
+    */
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
