@@ -1,19 +1,22 @@
-package study.security.config;
+package study.no.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -38,9 +41,8 @@ EnableWebSecurity에서 WebSecurity간련 클래스를 임포트하고 있기 �
 		HttpSecurityConfiguration.class })
 * */
 
-
-@Configuration
-@EnableWebSecurity
+@Order(0)
+//@EnableWebSecurity
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     UserDetailsService userDetailsService;
@@ -60,28 +62,36 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http
                 .authorizeRequests() // 요청에 대한 보안 검사 실행
+                .antMatchers("/login").permitAll()
                 .antMatchers("/user").hasRole("USER")
                 .antMatchers("/admin/pay").hasRole("ADMIN") // 위아래 순서 바꾸면 이건 아무 의미 없어짐(위에서부터 인증을 시도함)
                 .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
                 .anyRequest().authenticated(); // 모든 요청에 대해 검사 실행, 인증이 안되면 로그인 페이지로 리다이렉트
 
+//        http
+//                .csrf().disable(); 굳이 켜지 않아도 자동으로 등록된다.
+
         http
                 .formLogin()  // 폼 로그인 방식 사용
 //                .loginPage("/loginPage") // 로그인 페이지 변경 가능
-                .defaultSuccessUrl("/") // 로그인 성공시 이동할페이지
+//                .defaultSuccessUrl("/") // 로그인 성공시 이동할페이지
                 .failureUrl("/login") // 로그인 실패시 이동할 페이지
                 .usernameParameter("userId")
                 .passwordParameter("passwd") // 로그인 파라미터명 변경 가능
                 .loginProcessingUrl("/login_proc") // form태그 액션 url
-                /*          .successHandler(
+                          .successHandler(
                                   new AuthenticationSuccessHandler() { // 성공시 핸들러
                               @Override
                               public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-                                  System.out.println("autehtication : " + authentication.getName() ); // 사용자명 출력 후 루트페이지로 이동
-                                  response.sendRedirect("/");
+//                                  System.out.println("autehtication : " + authentication.getName() ); // 사용자명 출력 후 루트페이지로 이동
+//                                  response.sendRedirect("/");
+                                  RequestCache requestCache = new HttpSessionRequestCache();
+                                  SavedRequest savedRequest = requestCache.getRequest(request, response);
+                                  String redirectUrl = savedRequest.getRedirectUrl(); // 사용자가 기존 요청했었던 url 정보 뽑아옴
+                                  response.sendRedirect(redirectUrl); // 인증 성공 시 리다이렉트
                               }
                           })
-                          .failureHandler(
+                      /*    .failureHandler(
                                   new AuthenticationFailureHandler() {
                                       @Override
                                       public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
@@ -134,5 +144,45 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .sessionFixation().changeSessionId(); // 기본값, 인증 시마다 세션 아이디, 쿠키를 새로 발급함
 //                .sessionFixation().none(); // 세션 아이디가 새롭게 접속해도 계속 유지되어 취약점 발생
         // 공격자가 인증 전 사용자에게 쿠키 삽입, 공격자가 로그인 시 세션 아이디 생성되어 공격자와 공유 가능
+
+        http
+                .exceptionHandling()
+//                .authenticationEntryPoint(new AuthenticationEntryPoint() {
+//                                              @Override
+//                                              public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+//                                                  response.sendRedirect("/login");
+//                                              }
+//                                          }) // 인증 실패 시 핸들링
+                .accessDeniedHandler(new AccessDeniedHandler() {
+                    @Override
+                    public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
+                        response.sendRedirect("/denied");
+                    }
+                }); // 인가 실패 시 핸들링
+
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL); // 자식 스레드도 활용 가능하도록 변경
+    }
+}
+
+
+/*
+*
+* 인증 받지 않은 사용자의 경우 아래 방식으로
+* 보다 구체적인 방법을 먼저 확인하도록 해야한다.
+* 넓은 범위를 먼저 체크하게되면 후순위의 구체적인 방법은 무시당함.
+*
+* */
+
+@Order(1)
+@Configuration
+class SecurityConfig2 extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+                .authorizeRequests()
+                .anyRequest().permitAll()
+                .and()
+                .formLogin();
     }
 }
