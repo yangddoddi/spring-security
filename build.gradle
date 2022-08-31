@@ -54,8 +54,12 @@ dependencies {
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     implementation group: 'org.modelmapper', name: 'modelmapper', version: '2.3.8'
     implementation 'org.springframework.security:spring-security-test'
+
+    implementation group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.4'
 }
 
 tasks.named('test') {
